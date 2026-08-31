@@ -1,0 +1,51 @@
+name: Deploy Self-Host
+
+# Manual deploy of the selfhost stage, run on GitHub's runners instead of a
+# local machine (avoids local memory/CPU limits during the vite/tsc build).
+#
+# Required repo secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+# ENV_SELFHOST (full .env.selfhost file contents).
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-selfhost
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: "1"
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write .env.selfhost
+        run: printf '%s' "$ENV_SELFHOST" > .env.selfhost
+        env:
+          ENV_SELFHOST: ${{ secrets.ENV_SELFHOST }}
+
+      - name: Deploy selfhost stage
+        run: pnpm deploy:selfhost --yes
